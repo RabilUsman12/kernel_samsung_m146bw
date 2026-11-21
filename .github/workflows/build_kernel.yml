@@ -4,33 +4,22 @@ on:
   workflow_dispatch:
 
 jobs:
-  inspect-and-setup:
+  inspect-build-system:
     runs-on: ubuntu-22.04
     steps:
-      - name: Maximize Build Space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
-          df -h
-
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y bc bison build-essential ccache curl flex git gnupg gperf imagemagick libelf-dev liblz4-tool libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 python-is-python3 device-tree-compiler
-
-      - name: Clone Exynos 1330 (s5e8535 / m14x) Kernel Source
+      - name: Clone Kernel Source
         run: |
           git clone --depth=1 https://github.com/devhunter1/android_kernel_samsung_s5e8535.git ~/kernel
-          cd ~/kernel
-          git branch -a
-          ls -la
 
-      - name: Inspect Defconfig, DTSI & Thermal Drivers
+      - name: Check Build Scripts, Defconfig & ECT/OPP Tables
         run: |
           cd ~/kernel
-          echo "=== DEFCONFIGS ==="
-          find arch/arm64/configs -name "*s5e8535*" -o -name "*m14x*" -o -name "*exynos*"
-          echo "=== DEVICE TREES (OPP Tables) ==="
-          find arch/arm64/boot/dts -name "*s5e8535*" -o -name "*m14x*"
-          echo "=== THERMAL & GPU DRIVERS ==="
-          find drivers/thermal -maxdepth 2
-          find drivers/gpu/arm -maxdepth 2
+          echo "=== ROOT BUILD SCRIPTS ==="
+          ls -la build* *.sh 2>/dev/null || true
+          cat build_kernel.sh 2>/dev/null || true
+          echo "=== M14X DEFCONFIG HIGHLIGHTS ==="
+          grep -E "CONFIG_LOCALVERSION|CONFIG_UH|CONFIG_RKP|CONFIG_KDP|CONFIG_SECURITY_DEFEX|CONFIG_PROCA|CONFIG_FIVE|CONFIG_TCP_CONG|CONFIG_MALI|CONFIG_EXYNOS_THERMAL|CONFIG_EXYNOS_UFCC|CONFIG_TRIM_UNUSED_KSYMS|CONFIG_MODVERSIONS" arch/arm64/configs/m14x_defconfig || true
+          echo "=== DTSI / OPP / ECT FILES ==="
+          find arch/arm64/boot/dts -name "*s5e8535*" -o -name "*8535*" -o -name "*m14x*"
+          echo "=== EXYNOS THERMAL & MALI PLATFORM ==="
+          ls -la drivers/gpu/arm/exynos/platform/ 2>/dev/null || find drivers/gpu/arm/exynos -maxdepth 3
