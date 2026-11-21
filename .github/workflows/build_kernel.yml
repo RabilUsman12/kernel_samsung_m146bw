@@ -33,49 +33,47 @@ jobs:
           git checkout FETCH_HEAD || true
           head -n 5 Makefile
 
-      - name: Integrate KernelSU
+      - name: Integrate KernelSU (v0.9.5 Stable for 5.15)
         run: |
           cd ~/kernel
-          if curl -fsSL "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/main/kernel/setup.sh" -o ksu_setup.sh; then
-            bash ksu_setup.sh main
-          else
-            curl -fsSL "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
-          fi
-          rm -f ksu_setup.sh
+          curl -fsSL "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
 
-      - name: Apply Gaming, Network (BBR), 1000Hz & Debloat Configs
+      - name: Configure Kernel (Gaming, BBR, 1000Hz & KSU)
         run: |
           cd ~/kernel
-          cat << 'EOF' >> arch/arm64/configs/gki_defconfig
+          export PATH="$HOME/toolchain/clang-r450784d/bin:$PATH"
+          export ARCH=arm64
+          export SUBARCH=arm64
+          export LLVM=1
+          export LLVM_IAS=1
 
-          # KernelSU
-          CONFIG_KSU=y
-          CONFIG_KPROBES=y
-          CONFIG_HAVE_KPROBES=y
-          CONFIG_KPROBE_EVENTS=y
+          make O=out gki_defconfig
 
-          # 1000Hz Low-Latency Timer & Preemption
-          # CONFIG_HZ_250 is not set
-          CONFIG_HZ_1000=y
-          CONFIG_HZ=1000
+          ./scripts/config --file out/.config \
+            --set-str LOCALVERSION "-android13-3-31192385-CustomGaming" \
+            -d LOCALVERSION_AUTO \
+            -d WERROR \
+            -d TRIM_UNUSED_KSYMS \
+            -e KSU \
+            -e KPROBES \
+            -e HAVE_KPROBES \
+            -e KPROBE_EVENTS \
+            -e TCP_CONG_ADVANCED \
+            -e TCP_CONG_BBR \
+            -e DEFAULT_BBR \
+            --set-str DEFAULT_TCP_CONG "bbr" \
+            -e NET_SCH_FQ_CODEL \
+            -e NET_SCH_FQ \
+            -e HZ_1000 \
+            -d HZ_250 \
+            -d DEBUG_INFO \
+            -d DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT \
+            -d DEBUG_KERNEL \
+            -d FTRACE \
+            -d SCHED_DEBUG \
+            -d AUDIT
 
-          # TCP BBR & Network Gaming Optimization
-          CONFIG_TCP_CONG_ADVANCED=y
-          CONFIG_TCP_CONG_BBR=y
-          CONFIG_DEFAULT_BBR=y
-          CONFIG_DEFAULT_TCP_CONG="bbr"
-          CONFIG_NET_SCH_FQ_CODEL=y
-          CONFIG_NET_SCH_FQ=y
-
-          # Disable Heavy Debugging & Security Overhead
-          # CONFIG_DEBUG_KERNEL is not set
-          # CONFIG_FTRACE is not set
-          # CONFIG_SCHED_DEBUG is not set
-          # CONFIG_AUDIT is not set
-          # CONFIG_SECURITY_DEFEX is not set
-          # CONFIG_PROCA is not set
-          # CONFIG_FIVE is not set
-          EOF
+          make O=out olddefconfig
 
       - name: Compile Kernel Image
         run: |
@@ -86,20 +84,11 @@ jobs:
           export LLVM=1
           export LLVM_IAS=1
 
-          make O=out gki_defconfig
-          ./scripts/config --file out/.config \
-            --set-str LOCALVERSION "-android13-3-31192385-CustomGaming" \
-            -d LOCALVERSION_AUTO \
-            -e KSU \
-            -e TCP_CONG_BBR \
-            -e DEFAULT_BBR \
-            -e HZ_1000 \
-            -d HZ_250 \
-            -d DEBUG_INFO \
-            -d DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT
-
-          make O=out olddefconfig
-          make -j$(nproc) O=out Image
+          if ! make -j$(nproc) O=out Image 2>&1 | tee ~/build.log; then
+            echo "=== EXACT COMPILER ERRORS ==="
+            grep -E "error:|undefined reference|ld.lld:" ~/build.log | tail -n 30
+            exit 1
+          fi
 
       - name: Package AnyKernel3 Flashable Zip & Raw Image
         run: |
@@ -118,3 +107,4 @@ jobs:
         with:
           name: SM-M146B-Custom-Kernel-5.15.197
           path: ~/out_release/
+a
