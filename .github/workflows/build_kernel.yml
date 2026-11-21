@@ -85,6 +85,8 @@ jobs:
           export SUBARCH=arm64
           export LLVM=1
           export LLVM_IAS=1
+          make O=out prepare
+          make O=out security/selinux/flask.h
           if ! make -j$(nproc) O=out Image 2>&1 | tee ~/build.log; then
             echo "=== EXACT COMPILER ERRORS ==="
             grep -E "error:|undefined reference|ld.lld:" ~/build.log | tail -n 30
