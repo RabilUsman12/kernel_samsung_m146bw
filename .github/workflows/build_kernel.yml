@@ -21,7 +21,7 @@ jobs:
         run: |
           mkdir -p ~/toolchain/clang-r450784d
           cd ~/toolchain/clang-r450784d
-          curl -L "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android13-release/clang-r450784d.tar.gz" -o clang.tar.gz
+          curl -fL "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android13-release/clang-r450784d.tar.gz" -o clang.tar.gz
           tar -xzf clang.tar.gz
           rm clang.tar.gz
 
@@ -33,10 +33,15 @@ jobs:
           git checkout FETCH_HEAD || true
           head -n 5 Makefile
 
-      - name: Integrate KernelSU Next
+      - name: Integrate KernelSU
         run: |
           cd ~/kernel
-          curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash -s next
+          if curl -fsSL "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/main/kernel/setup.sh" -o ksu_setup.sh; then
+            bash ksu_setup.sh main
+          else
+            curl -fsSL "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
+          fi
+          rm -f ksu_setup.sh
 
       - name: Apply Gaming, Network (BBR), 1000Hz & Debloat Configs
         run: |
