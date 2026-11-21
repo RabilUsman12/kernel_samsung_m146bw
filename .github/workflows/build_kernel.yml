@@ -46,9 +46,7 @@ jobs:
           export SUBARCH=arm64
           export LLVM=1
           export LLVM_IAS=1
-
           make O=out gki_defconfig
-
           ./scripts/config --file out/.config \
             --set-str LOCALVERSION "-android13-3-31192385-CustomGaming" \
             -d LOCALVERSION_AUTO \
@@ -72,7 +70,6 @@ jobs:
             -d FTRACE \
             -d SCHED_DEBUG \
             -d AUDIT
-
           make O=out olddefconfig
 
       - name: Compile Kernel Image
@@ -83,7 +80,6 @@ jobs:
           export SUBARCH=arm64
           export LLVM=1
           export LLVM_IAS=1
-
           if ! make -j$(nproc) O=out Image 2>&1 | tee ~/build.log; then
             echo "=== EXACT COMPILER ERRORS ==="
             grep -E "error:|undefined reference|ld.lld:" ~/build.log | tail -n 30
@@ -98,7 +94,6 @@ jobs:
           cp ~/kernel/out/arch/arm64/boot/Image ~/AnyKernel3/Image
           sed -i 's/do.devicecheck=1/do.devicecheck=0/g' ~/AnyKernel3/anykernel.sh
           sed -i 's/BLOCK=\/dev\/block\/platform\/omap\/omap_hsmmc.0\/by-name\/boot;/BLOCK=\/dev\/block\/by-name\/boot;/g' ~/AnyKernel3/anykernel.sh
-          sed -i 's/IS_SLOT_DEVICE=0;/IS_SLOT_DEVICE=0;/g' ~/AnyKernel3/anykernel.sh
           cd ~/AnyKernel3
           zip -r9 ~/out_release/CustomKernel_SM-M146B_5.15.197_KSU.zip * -x .git README.md *placeholder
 
@@ -107,4 +102,3 @@ jobs:
         with:
           name: SM-M146B-Custom-Kernel-5.15.197
           path: ~/out_release/
-a
