@@ -52,6 +52,9 @@ jobs:
             -d LOCALVERSION_AUTO \
             -d WERROR \
             -d TRIM_UNUSED_KSYMS \
+            -d LTO_CLANG_FULL \
+            -d LTO_CLANG_THIN \
+            -e LTO_NONE \
             -e KSU \
             -e KPROBES \
             -e HAVE_KPROBES \
@@ -74,6 +77,7 @@ jobs:
 
       - name: Compile Kernel Image
         run: |
+          set -o pipefail
           cd ~/kernel
           export PATH="$HOME/toolchain/clang-r450784d/bin:$PATH"
           export ARCH=arm64
