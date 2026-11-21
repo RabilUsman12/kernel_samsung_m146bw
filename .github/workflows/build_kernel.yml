@@ -76,7 +76,7 @@ jobs:
             -d AUDIT
           make O=out olddefconfig
 
-      - name: Compile Kernel Image
+            - name: Compile Kernel Image
         run: |
           set -o pipefail
           cd ~/kernel
@@ -86,12 +86,13 @@ jobs:
           export LLVM=1
           export LLVM_IAS=1
           make O=out prepare
-          make O=out security/selinux/flask.h
+          make -j$(nproc) O=out security/selinux/
           if ! make -j$(nproc) O=out Image 2>&1 | tee ~/build.log; then
             echo "=== EXACT COMPILER ERRORS ==="
             grep -E "error:|undefined reference|ld.lld:" ~/build.log | tail -n 30
             exit 1
           fi
+
 
       - name: Package AnyKernel3 Flashable Zip & Raw Image
         run: |
