@@ -33,11 +33,10 @@ jobs:
           git checkout FETCH_HEAD || true
           head -n 5 Makefile
 
-      - name: Integrate KernelSU & Fix Out-of-Tree SELinux Headers
+      - name: Integrate KernelSU (v0.9.5 Stable for 5.15)
         run: |
           cd ~/kernel
           curl -fsSL "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
-          echo 'ccflags-y += -I$(objtree)/security/selinux -I$(srctree)/security/selinux' >> drivers/kernelsu/Makefile
 
       - name: Configure Kernel (Gaming, BBR, 1000Hz & KSU)
         run: |
@@ -56,6 +55,8 @@ jobs:
             -d LTO_CLANG_FULL \
             -d LTO_CLANG_THIN \
             -e LTO_NONE \
+            -e AUDIT \
+            -e SECURITY_SELINUX \
             -e KSU \
             -e KPROBES \
             -e HAVE_KPROBES \
@@ -72,8 +73,7 @@ jobs:
             -d DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT \
             -d DEBUG_KERNEL \
             -d FTRACE \
-            -d SCHED_DEBUG \
-            -d AUDIT
+            -d SCHED_DEBUG
           make O=out olddefconfig
 
       - name: Compile Kernel Image
@@ -87,13 +87,12 @@ jobs:
           export LLVM_IAS=1
           make O=out prepare
           make -j$(nproc) O=out security/selinux/
-          find out/security/selinux -name "*.h" -exec cp -v {} security/selinux/include/ \;
+          find out/security/selinux -name "*.h" -exec cp -v {} security/selinux/include/ \; 2>/dev/null || true
           if ! make -j$(nproc) O=out Image 2>&1 | tee ~/build.log; then
             echo "=== EXACT COMPILER ERRORS ==="
             grep -E "error:|undefined reference|ld.lld:" ~/build.log | tail -n 30
             exit 1
           fi
-
 
       - name: Package AnyKernel3 Flashable Zip & Raw Image
         run: |
