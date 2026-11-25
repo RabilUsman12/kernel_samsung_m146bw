@@ -10,7 +10,11 @@ jobs:
       - name: Maximize Build Space
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
-          df -h
+          sudo fallocate -l 6G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          free -h
 
       - name: Install Dependencies
         run: |
@@ -31,14 +35,13 @@ jobs:
           cd ~/kernel
           git fetch --depth=1 origin tag android13-5.15.197_r00 || true
           git checkout FETCH_HEAD || true
-          head -n 5 Makefile
 
       - name: Integrate KernelSU (v0.9.5 Stable for 5.15)
         run: |
           cd ~/kernel
           curl -fsSL "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
 
-      - name: Configure Kernel (Gaming, BBR, 1000Hz & KSU)
+      - name: Configure Kernel (GKI CFI/ThinLTO Match + BBR + 1000Hz + KSU)
         run: |
           cd ~/kernel
           export PATH="$HOME/toolchain/clang-r450784d/bin:$PATH"
@@ -48,13 +51,19 @@ jobs:
           export LLVM_IAS=1
           make O=out gki_defconfig
           ./scripts/config --file out/.config \
-            --set-str LOCALVERSION "-android13-3-31192385-CustomGaming" \
+            --set-str LOCALVERSION "-android13-3-31192385" \
             -d LOCALVERSION_AUTO \
             -d WERROR \
             -d TRIM_UNUSED_KSYMS \
             -d LTO_CLANG_FULL \
-            -d LTO_CLANG_THIN \
-            -e LTO_NONE \
+            -d LTO_NONE \
+            -e LTO \
+            -e LTO_CLANG \
+            -e LTO_CLANG_THIN \
+            -e CFI_CLANG \
+            -e CFI_CLANG_SHADOW \
+            -e SHADOW_CALL_STACK \
+            -e MODVERSIONS \
             -e AUDIT \
             -e SECURITY_SELINUX \
             -e KSU \
@@ -70,10 +79,7 @@ jobs:
             -e HZ_1000 \
             -d HZ_250 \
             -d DEBUG_INFO \
-            -d DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT \
-            -d DEBUG_KERNEL \
-            -d FTRACE \
-            -d SCHED_DEBUG
+            -d DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT
           make O=out olddefconfig
 
       - name: Compile Kernel Image
@@ -94,19 +100,8 @@ jobs:
             exit 1
           fi
 
-      - name: Package AnyKernel3 Flashable Zip & Raw Image
-        run: |
-          mkdir -p ~/out_release
-          cp ~/kernel/out/arch/arm64/boot/Image ~/out_release/Image
-          git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git ~/AnyKernel3
-          cp ~/kernel/out/arch/arm64/boot/Image ~/AnyKernel3/Image
-          sed -i 's/do.devicecheck=1/do.devicecheck=0/g' ~/AnyKernel3/anykernel.sh
-          sed -i 's/BLOCK=\/dev\/block\/platform\/omap\/omap_hsmmc.0\/by-name\/boot;/BLOCK=\/dev\/block\/by-name\/boot;/g' ~/AnyKernel3/anykernel.sh
-          cd ~/AnyKernel3
-          zip -r9 ~/out_release/CustomKernel_SM-M146B_5.15.197_KSU.zip * -x .git README.md *placeholder
-
-      - name: Upload Build Artifacts
+      - name: Upload Raw Kernel Image
         uses: actions/upload-artifact@v4
         with:
-          name: SM-M146B-Custom-Kernel-5.15.197
-          path: ~/out_release/
+          name: SM-M146B-Image-5.15.197-CFI
+          path: ~/kernel/out/arch/arm64/boot/Image
