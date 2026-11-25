@@ -17,7 +17,6 @@ jobs:
           sudo swapon /mnt/swapfile
           free -h
           df -h
-
       - name: Install Dependencies
         run: |
           sudo apt-get update
