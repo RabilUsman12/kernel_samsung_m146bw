@@ -1,4 +1,4 @@
-name: Build Custom GKI Kernel 5.15.197 (SM-M146B)
+name: Build Bootable GKI Kernel 5.15 (SM-M146B)
 
 on:
   workflow_dispatch:
@@ -7,16 +7,17 @@ jobs:
   build-kernel:
     runs-on: ubuntu-22.04
     steps:
-      - name: Maximize Build Space
+      - name: Maximize Build Space & Swap (10GB for Full LTO)
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
           sudo swapoff -a || true
-          sudo fallocate -l 8G /mnt/swapfile
+          sudo fallocate -l 10G /mnt/swapfile
           sudo chmod 600 /mnt/swapfile
           sudo mkswap /mnt/swapfile
           sudo swapon /mnt/swapfile
           free -h
           df -h
+
       - name: Install Dependencies
         run: |
           sudo apt-get update
@@ -30,19 +31,18 @@ jobs:
           tar -xzf clang.tar.gz
           rm clang.tar.gz
 
-      - name: Clone AOSP GKI android13-5.15 (5.15.197)
+      - name: Clone AOSP GKI android13-5.15-lts
         run: |
           git clone --depth=1 -b android13-5.15-lts https://android.googlesource.com/kernel/common ~/kernel
           cd ~/kernel
-          git fetch --depth=1 origin tag android13-5.15.197_r00 || true
-          git checkout FETCH_HEAD || true
+          head -n 5 Makefile
 
       - name: Integrate KernelSU (v0.9.5 Stable for 5.15)
         run: |
           cd ~/kernel
           curl -fsSL "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
 
-      - name: Configure Kernel (GKI CFI/ThinLTO Match + BBR + 1000Hz + KSU)
+      - name: Configure Kernel (Full LTO + CFI Permissive + KSU + BBR + 1000Hz)
         run: |
           cd ~/kernel
           export PATH="$HOME/toolchain/clang-r450784d/bin:$PATH"
@@ -52,17 +52,18 @@ jobs:
           export LLVM_IAS=1
           make O=out gki_defconfig
           ./scripts/config --file out/.config \
-            --set-str LOCALVERSION "-android13-3-31192385" \
+            --set-str LOCALVERSION "-android13-8-CustomGaming" \
             -d LOCALVERSION_AUTO \
             -d WERROR \
             -d TRIM_UNUSED_KSYMS \
-            -d LTO_CLANG_FULL \
             -d LTO_NONE \
+            -d LTO_CLANG_THIN \
             -e LTO \
             -e LTO_CLANG \
-            -e LTO_CLANG_THIN \
+            -e LTO_CLANG_FULL \
             -e CFI_CLANG \
             -e CFI_CLANG_SHADOW \
+            -e CFI_PERMISSIVE \
             -e SHADOW_CALL_STACK \
             -e MODVERSIONS \
             -e AUDIT \
@@ -101,8 +102,21 @@ jobs:
             exit 1
           fi
 
-      - name: Upload Raw Kernel Image
+      - name: Package AnyKernel3 GKI Zip (FKM Ready)
+        run: |
+          mkdir -p ~/out_release
+          git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git ~/AnyKernel3
+          cp ~/kernel/out/arch/arm64/boot/Image ~/AnyKernel3/Image
+          sed -i 's/do.devicecheck=1/do.devicecheck=0/g' ~/AnyKernel3/anykernel.sh
+          sed -i 's/BLOCK=\/dev\/block\/platform\/omap\/omap_hsmmc.0\/by-name\/boot;/BLOCK=\/dev\/block\/by-name\/boot;/g' ~/AnyKernel3/anykernel.sh
+          sed -i 's/IS_SLOT_DEVICE=0;/IS_SLOT_DEVICE=0;\nNO_RAMDISK=1;/g' ~/AnyKernel3/anykernel.sh
+          sed -i 's/dump_boot;/split_boot;/g' ~/AnyKernel3/anykernel.sh
+          sed -i 's/write_boot;/flash_boot;/g' ~/AnyKernel3/anykernel.sh
+          cd ~/AnyKernel3
+          zip -r9 ~/out_release/FKM_CustomKernel_SM-M146B_5.15_KSU.zip * -x .git README.md *placeholder
+
+      - name: Upload FKM Flashable Zip
         uses: actions/upload-artifact@v4
         with:
-          name: SM-M146B-Image-5.15.197-CFI
-          path: ~/kernel/out/arch/arm64/boot/Image
+          name: FKM-Flashable-SM-M146B-5.15
+          path: ~/out_release/FKM_CustomKernel_SM-M146B_5.15_KSU.zip
